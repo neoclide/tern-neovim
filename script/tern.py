@@ -1,4 +1,4 @@
-import vim, os, platform, subprocess, webbrowser, json, re, string, time
+import vim, os, platform, subprocess, webbrowser, json, re, string, time, socket
 import sys
 PY2 = int(sys.version[0]) == 2
 if PY2:
@@ -212,11 +212,17 @@ def tern_runCommand(query, pos=None, fragments=True, silent=False):
     pass
 
   if data is None and portIsOld:
+    # check if port invalid
     try:
-      port, portIsOld = tern_findServer(port)
-      if port is None: return
-      data = tern_makeRequest(port, doc, silent)
-      if data is None: return None
+      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      result = sock.connect_ex(('127.0.0.1', int(port)))
+      if result == 0:
+        sock.close()
+      else:
+        port, portIsOld = tern_findServer(port)
+        if port is None: return
+        data = tern_makeRequest(port, doc, silent)
+        if data is None: return None
     except Exception as e:
       if not silent:
         tern_displayError(e)
