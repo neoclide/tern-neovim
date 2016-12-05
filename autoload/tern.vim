@@ -1,15 +1,4 @@
-if !has('python') && !has('python3')
-  echo 'tern requires python support'
-  finish
-endif
-
-let s:plug = expand("<sfile>:p:h:h")
-let s:script = s:plug . '/script/tern.py'
-if has('python3')
-  execute 'py3file ' . fnameescape(s:script)
-elseif has('python')
-  execute 'pyfile ' . fnameescape(s:script)
-endif
+if !has('python3') | finish | endif
 
 if !exists('g:tern#command')
   let g:tern#command = ["node", expand('<sfile>:h') . '/../node_modules/tern/bin/tern', '--no-port-file']
@@ -29,11 +18,7 @@ endfunction
 
 function! tern#Complete(findstart, complWord)
   if a:findstart
-    if has('python3')
-      python3 tern_ensureCompletionCached()
-    elseif has('python')
-      python tern_ensureCompletionCached()
-    endif
+    call TernEnsureCompletionCached()
     return b:ternLastCompletionPos['start']
   elseif b:ternLastCompletionPos['end'] - b:ternLastCompletionPos['start'] == len(a:complWord)
     return b:ternLastCompletion
@@ -48,27 +33,12 @@ function! tern#Complete(findstart, complWord)
   endif
 endfunction
 
-function! tern#LookupType()
-  if has('python3')
-    python3 tern_lookupType()
-  elseif has('python')
-    python tern_lookupType()
-  endif
-  return ''
-endfunction
-
 function! tern#LookupArgumentHints()
-  if g:tern_show_argument_hints == 'no'
-    return
-  endif
-  let fname = get(matchlist(getline('.')[:col('.')-2],'\([a-zA-Z0-9_]*\)([^()]*$'),1)
-  let pos   = match(getline('.')[:col('.')-2],'[a-zA-Z0-9_]*([^()]*$')
+  if g:tern_show_argument_hints ==# 'no' | return | endif
+  let fname = get(matchlist(getline('.')[:col('.')-1],'\([a-zA-Z0-9_]*\)([^()]*$'),1)
+  let pos   = match(getline('.')[:col('.')-1],'[a-zA-Z0-9_]*([^()]*$')
   if pos >= 0
-    if has('python3')
-      python3 tern_lookupArgumentHints(vim.eval('fname'),int(vim.eval('pos')))
-    elseif has('python')
-      python tern_lookupArgumentHints(vim.eval('fname'),int(vim.eval('pos')))
-    endif
+    call TernLookupArgumentHints(fname, pos)
   endif
   return ''
 endfunction
@@ -94,7 +64,7 @@ if !exists('g:tern_map_prefix')
 endif
 
 if !exists('g:tern_request_timeout')
-  let g:tern_request_timeout = 1
+  let g:tern_request_timeout = 3
 endif
 
 function! tern#DefaultKeyMap(...)
@@ -115,27 +85,15 @@ function! tern#Enable()
     return
   endif
 
-  if has('python3')
-    command! -buffer TernDoc py3 tern_lookupDocumentation()
-    command! -buffer TernDocBrowse py3 tern_lookupDocumentation(browse=True)
-    command! -buffer TernType py3 tern_lookupType()
-    command! -buffer TernDef py3 tern_lookupDefinition("edit")
-    command! -buffer TernDefPreview py3 tern_lookupDefinition("pedit")
-    command! -buffer TernDefSplit py3 tern_lookupDefinition("split")
-    command! -buffer TernDefTab py3 tern_lookupDefinition("tabe")
-    command! -buffer TernRefs py3 tern_refs()
-    command! -buffer TernRename exe 'py3 tern_rename("'.input("new name? ",expand("<cword>")).'")'
-  elseif has('python')
-    command! -buffer TernDoc py tern_lookupDocumentation()
-    command! -buffer TernDocBrowse py tern_lookupDocumentation(browse=True)
-    command! -buffer TernType py tern_lookupType()
-    command! -buffer TernDef py tern_lookupDefinition("edit")
-    command! -buffer TernDefPreview py tern_lookupDefinition("pedit")
-    command! -buffer TernDefSplit py tern_lookupDefinition("split")
-    command! -buffer TernDefTab py tern_lookupDefinition("tabe")
-    command! -buffer TernRefs py tern_refs()
-    command! -buffer TernRename exe 'py tern_rename("'.input("new name? ",expand("<cword>")).'")'
-  endif
+  command! -buffer TernDoc call TernLookupDocumentation(v:false)
+  command! -buffer TernDocBrowse call TernLookupDocumentation(v:true)
+  command! -buffer TernType call TernLookupType()
+  command! -buffer TernDef call TernLookupDefinition("edit")
+  command! -buffer TernDefPreview call TernLookupDefinition("pedit")
+  command! -buffer TernDefSplit call TernLookupDefinition("vs")
+  command! -buffer TernDefTab call TernLookupDefinition("tabe")
+  command! -buffer TernRefs call TernRefs()
+  command! -buffer TernRename exe 'call TernRename("'.input("new name? ",expand("<cword>")).'")'
 
   let b:ternProjectDir = ''
   let b:ternLastCompletion = []
@@ -152,36 +110,13 @@ function! tern#Enable()
   endif
   augroup TernAutoCmd
     autocmd! * <buffer>
-    if has('python3')
-      autocmd BufLeave <buffer> :py3 tern_sendBufferIfDirty()
-    elseif has('python')
-      autocmd BufLeave <buffer> :py tern_sendBufferIfDirty()
-    endif
-
-    if g:tern_show_argument_hints == 'on_move'
-      autocmd CursorMoved,CursorMovedI <buffer> call tern#LookupArgumentHints()
-    elseif g:tern_show_argument_hints == 'on_hold'
-      autocmd CursorHold,CursorHoldI <buffer> call tern#LookupArgumentHints()
-    endif
+    autocmd BufLeave <buffer> :call TernSendBufferIfDirty()
+    autocmd CursorHold,CursorHoldI <buffer> call tern#LookupArgumentHints()
     autocmd InsertEnter <buffer> let b:ternInsertActive = 1
     autocmd InsertLeave <buffer> let b:ternInsertActive = 0
   augroup END
 endfunction
 
-augroup TernShutDown
-  autocmd VimLeavePre * call tern#Shutdown()
-augroup END
-
-function! tern#Disable()
-  augroup TernAutoCmd
-    autocmd! * <buffer>
-  augroup END
-endfunction
-
 function! tern#Shutdown()
-  if has('python3')
-    py3 tern_killServers()
-  elseif has('python')
-    py tern_killServers()
-  endif
+  call TernShutDown()
 endfunction
