@@ -1,9 +1,9 @@
 # Tern for Vim
 
-This is a [Vim][vim] plugin that provides [Tern][tern]-based
+This is a [Neovim][neovim] plugin that provides [Tern][tern]-based
 JavaScript editing support.
 
-[vim]: http://www.vim.org/
+[neovim]: https://neovim.io
 [tern]: http://ternjs.net
 
 In JavaScript files, the package will hook into
