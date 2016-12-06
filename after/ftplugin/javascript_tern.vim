@@ -1,3 +1,5 @@
+if !has('neovim') | finish | endif
+
 call tern#Enable()
 
 " Menu 
