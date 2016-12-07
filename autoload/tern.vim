@@ -8,12 +8,61 @@ if !exists('g:tern#arguments')
   let g:tern#arguments = []
 endif
 
+let g:tern_job_id = 0
+let g:tern_project_root = ''
+
 function! tern#PreviewInfo(info)
   pclose
   new +setlocal\ previewwindow|setlocal\ buftype=nofile|setlocal\ noswapfile|setlocal\ wrap
   exe "normal z" . &previewheight . "\<cr>"
   call append(0, type(a:info)==type("") ? split(a:info, "\n") : a:info)
   wincmd p
+endfunction
+
+function! tern#Start()
+  call tern#Shutdown()
+  let f = findfile('.tern-project', '.;')
+  if empty(f) | return | endif
+  let g:tern_project_root = fnamemodify(f, ':p:h')
+  let command = g:tern#command + g:tern#arguments
+  let res = jobstart(command, {
+    \ 'cwd': g:tern_project_root,
+    \ 'on_stdout': function('s:JobHandler'),
+    \ 'on_stderr': function('s:JobHandler'),
+    \ 'on_exit': function('s:JobHandler'),
+    \ 'detach': 1,
+    \})
+  if res == 0
+    echohl Error | echon 'Invalid arguments: '.command | echohl None
+  elseif res == -1
+    echohl Error | echon 'Failed to run: '.command | echohl None
+  else
+    let g:tern_job_id = res
+  endif
+endfunction
+
+function! tern#Shutdown()
+  if !g:tern_job_id | return | endif
+  call jobstop(g:tern_job_id)
+endfunction
+
+function! s:JobHandler(job_id, data, event)
+  if a:event ==# 'stdout'
+    for line in a:data
+      let list = matchlist(line, '^Listening on port \(\d\+\)')
+      if len(list)
+        let port = list[1]
+        call TernConfig(g:tern_project_root, port)
+      " TODO send message to logger
+      endif
+    endfor
+  elseif a:event ==# 'stderr'
+    echohl Error | echon 'Tern error: '.join(a:data) | echohl None
+  else
+    if a:job_id == g:tern_job_id && !v:exiting
+      let g:tern_project_root = ''
+    endif
+  endif
 endfunction
 
 function! tern#Complete(findstart, complWord)
@@ -115,8 +164,4 @@ function! tern#Enable()
     autocmd InsertEnter <buffer> let b:ternInsertActive = 1
     autocmd InsertLeave <buffer> let b:ternInsertActive = 0
   augroup END
-endfunction
-
-function! tern#Shutdown()
-  call TernShutDown()
 endfunction

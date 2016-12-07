@@ -1,4 +1,4 @@
-if !has('neovim') | finish | endif
+if !has('nvim') | finish | endif
 
 call tern#Enable()
 

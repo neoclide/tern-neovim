@@ -1,4 +1,4 @@
-import neovim, os, json, subprocess, socket, platform, subprocess,re, string, time, webbrowser
+import neovim, os, json, socket, platform, re, string, time, webbrowser
 import sys
 from urllib import request
 from urllib.error import HTTPError
@@ -40,85 +40,12 @@ class Tern(object):
   def __init__(self, nvim):
     self.nvim = nvim
     self.port = None
-    self.proc = None
     self.root = ''
 
-  @neovim.autocmd('VimLeave', pattern="*", sync=False)
-  def on_vimleave(self):
-    self.shutDown([])
-
-  @neovim.autocmd('VimEnter', pattern="*", sync=False)
-  def on_vimenter(self):
-    self.root = self.project_dir()
-    if self.root == '': return
-    portFile = os.path.join(self.root, ".tern-port")
-    if os.path.isfile(portFile):
-      port = int(open(portFile, "r").read())
-      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      result = sock.connect_ex(('127.0.0.1', int(port)))
-      if result == 0:
-        self.port = port
-        sock.close()
-        return
-    self.start_server()
-
-  @neovim.function("TernShutDown", sync=True)
-  def shutDown(self, args):
-    if self.proc is None: return
-    self.proc.stdin.close()
-    self.proc.wait()
-    self.proc = None
-    self.port = None
-
-  @neovim.function("TernRestart", sync=True)
-  def restart(self, args):
-    self.shutDown([])
-    self.on_vimenter()
-
-  def project_dir(self):
-    mydir = self.nvim.eval("expand('%:p:h')")
-    if not os.path.isdir(mydir): return ""
-
-    if mydir:
-      while True:
-        parent = os.path.dirname(mydir[:-1])
-        if not parent:
-          return ""
-        if os.path.isfile(os.path.join(mydir, ".tern-project")):
-          project_dir = mydir
-          break
-        mydir = parent
-    return project_dir
-
-  def start_server(self):
-    command = self.nvim.eval("g:tern#command") + self.nvim.eval("g:tern#arguments")
-    win = platform.system() == "Windows"
-    env = None
-    if platform.system() == "Darwin":
-      env = os.environ.copy()
-    try:
-      proc = subprocess.Popen(command,
-          cwd=self.root, env=env,
-          stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-          stderr=subprocess.STDOUT, shell=win)
-    except Exception as e:
-      self.display_error("Failed to start server: " + str(e))
-      return None
-    output = ""
-    while True:
-      line = proc.stdout.readline().decode('utf8')
-      if not line:
-        self.display_error("Failed to start server" + (output and ":\n" + output))
-        project.last_failed = time.time()
-        return None
-      match = re.match("Listening on port (\\d+)", line)
-      if match:
-        port = int(match.group(1))
-        self.port = port
-        self.proc = proc
-        return port
-      else:
-        output += line
+  @neovim.function("TernConfig", sync=False)
+  def config(self, args):
+    self.root = args[0]
+    self.port = args[1]
 
   def display_error(self, err):
     self.nvim.command("echohl Error")
@@ -126,6 +53,7 @@ class Tern(object):
     self.nvim.command("echohl None")
 
   def makeRequest(self, doc, silent=False):
+    if self.port is None: return
     payload = json.dumps(doc)
     payload = payload.encode('utf-8')
     port = self.port
