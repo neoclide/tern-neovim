@@ -20,9 +20,10 @@ function! tern#PreviewInfo(info)
 endfunction
 
 function! tern#Start()
-  call tern#Shutdown()
+  if &buftype ==# 'nofile' | return | endif
   let f = findfile('.tern-project', '.;')
   if empty(f) | return | endif
+  call tern#Shutdown()
   let g:tern_project_root = fnamemodify(f, ':p:h')
   let command = g:tern#command + g:tern#arguments
   let res = jobstart(command, {
