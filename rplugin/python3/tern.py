@@ -253,7 +253,7 @@ class Tern(object):
     text = data
     if len(name) > 0:
       text = name+": " + text
-    col = int(self.nvim.eval("&columns"))-23
+    col = int(self.nvim.eval("&columns"))-10
     if len(text) > col:
       text = text[0:col]+"..."
     self.echo(text)
