@@ -42,12 +42,12 @@ function! tern#Start()
   endif
 endfunction
 
-function! tern#Shutdown()
+function! tern#Shutdown() abort
   if !g:tern_job_id | return | endif
   call jobstop(g:tern_job_id)
 endfunction
 
-function! s:JobHandler(job_id, data, event)
+function! s:JobHandler(job_id, data, event) abort
   if a:event ==# 'stdout'
     for line in a:data
       let list = matchlist(line, '^Listening on port \(\d\+\)')
@@ -66,7 +66,7 @@ function! s:JobHandler(job_id, data, event)
   endif
 endfunction
 
-function! tern#Complete(findstart, complWord)
+function! tern#Complete(findstart, complWord) abort
   if a:findstart
     call TernEnsureCompletionCached()
     return b:ternLastCompletionPos['start']
@@ -83,14 +83,14 @@ function! tern#Complete(findstart, complWord)
   endif
 endfunction
 
-function! tern#LookupArgumentHints()
+function! tern#LookupArgumentHints() abort
   if g:tern_show_argument_hints ==# 'no' | return | endif
-  let fname = get(matchlist(getline('.')[:col('.')-1],'\([a-zA-Z0-9_]*\)([^()]*$'),1)
-  let pos   = match(getline('.')[:col('.')-1],'[a-zA-Z0-9_]*([^()]*$')
+  let c = mode() ==# 'i' ? col('.')  - 2 : col('.') - 1
+  let fname = get(matchlist(getline('.')[:c],'\([a-zA-Z0-9_]*\)([^()]*$'),1)
+  let pos   = match(getline('.')[:c],'[a-zA-Z0-9_]*([^()]*$')
   if pos >= 0
     call TernLookupArgumentHints(fname, pos)
   endif
-  return ''
 endfunction
 
 if !exists('g:tern_show_argument_hints')
@@ -130,10 +130,7 @@ function! tern#DefaultKeyMap(...)
   execute 'nnoremap <buffer> '.prefix.'tR' ':TernRename<CR>'
 endfunction
 
-function! tern#Enable()
-  if stridx(&buftype, "nofile") > -1 || stridx(&buftype, "nowrite") > -1
-    return
-  endif
+function! tern#Enable() abort
 
   command! -buffer TernDoc call TernLookupDocumentation(v:false)
   command! -buffer TernDocBrowse call TernLookupDocumentation(v:true)
@@ -159,9 +156,9 @@ function! tern#Enable()
     call tern#DefaultKeyMap(g:tern_map_prefix)
   endif
   augroup TernAutoCmd
-    autocmd! * <buffer>
+    autocmd!
     autocmd BufLeave <buffer> :call TernSendBufferIfDirty()
-    autocmd CursorHold,CursorHoldI <buffer> call tern#LookupArgumentHints()
+    autocmd CursorHold,CursorHoldI  <buffer> :call tern#LookupArgumentHints()
     autocmd InsertEnter <buffer> let b:ternInsertActive = 1
     autocmd InsertLeave <buffer> let b:ternInsertActive = 0
   augroup END
