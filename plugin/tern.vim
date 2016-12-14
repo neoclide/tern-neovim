@@ -1,3 +1,4 @@
+if !has('nvim') | finish | endif
 
 augroup tern
   autocmd!
