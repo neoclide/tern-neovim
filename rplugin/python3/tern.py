@@ -1,7 +1,6 @@
-import neovim, os, json, socket, platform, re, string, time, webbrowser
-import sys
 from urllib import request
 from urllib.error import HTTPError
+import neovim, os, json, socket, re, webbrowser, platform, subprocess, time
 
 def cmp(a, b):
   if a < b:
@@ -40,12 +39,92 @@ class Tern(object):
   def __init__(self, nvim):
     self.nvim = nvim
     self.port = None
+    self.proc = None
     self.root = ''
 
-  @neovim.function("TernConfig", sync=False)
-  def config(self, args):
-    self.root = args[0]
-    self.port = args[1]
+  @neovim.autocmd('VimLeave', pattern="*", sync=False)
+  def on_vimleave(self):
+    self.shutDown([])
+
+  def find_port(self):
+    self.root = self.project_dir()
+    if self.root == '':
+      return
+    self.nvim.command("let g:tern_root='" + self.root + "'")
+    port_file = os.path.join(self.root, ".tern-port")
+    # use existing port file if possible
+    if os.path.isfile(port_file):
+      port = int(open(port_file, "r").read())
+      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      result = sock.connect_ex(('127.0.0.1', int(port)))
+      if result == 0:
+        sock.close()
+        self.port = port
+        return True
+
+  @neovim.function("TernShutDown", sync=True)
+  def shutDown(self, args):
+    self.port = None
+    if self.proc is None: return
+    self.proc.stdin.close()
+    try:
+      self.proc.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+      self.proc.kill()
+    self.proc = None
+
+  @neovim.function("TernRestart", sync=True)
+  def restart(self, args):
+    self.shutDown([])
+    self.start_server([])
+
+  def project_dir(self):
+    mydir = self.nvim.eval("expand('%:p:h')")
+    if not os.path.isdir(mydir): return ""
+
+    if mydir:
+      while True:
+        parent = os.path.dirname(mydir[:-1])
+        if not parent:
+          return ""
+        if os.path.isfile(os.path.join(mydir, ".tern-project")):
+          project_dir = mydir
+          break
+        mydir = parent
+    return project_dir
+
+  @neovim.function("TernStart", sync=False)
+  def start_server(self, args):
+    if self.find_port():
+      return
+    command = self.nvim.eval("g:tern#command") + self.nvim.eval("g:tern#arguments")
+    win = platform.system() == "Windows"
+    env = None
+    if platform.system() == "Darwin":
+      env = os.environ.copy()
+    try:
+      proc = subprocess.Popen(command,
+                              cwd=self.root, env=env,
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, shell=win)
+    except Exception as e:
+      self.display_error("Failed to start server: " + str(e))
+      return None
+    output = ""
+    while True:
+      line = proc.stdout.readline().decode('utf8')
+      if not line:
+        self.display_error("Failed to start server" + (output and ":\n" + output))
+        return None
+      match = re.match("Listening on port (\\d+)", line)
+      if match:
+        port = int(match.group(1))
+        self.port = port
+        self.proc = proc
+        self.nvim.command("echomsg 'Tern server started at " + str(port) + "'")
+        return port
+      else:
+        output += line
 
   def display_error(self, err):
     self.nvim.command("echohl Error")
@@ -84,8 +163,8 @@ class Tern(object):
   def fullBuffer(self):
     buf = self.nvim.current.buffer
     return {"type": "full",
-      "name": self.relativeFile(),
-      "text": self.bufferSlice(buf, 0, len(buf))}
+            "name": self.relativeFile(),
+            "text": self.bufferSlice(buf, 0, len(buf))}
 
   def bufferFragment(self):
     curRow, curCol = self.nvim.current.window.cursor
@@ -142,11 +221,11 @@ class Tern(object):
       # check if port is closed
       try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        result = sock.connect_ex(('127.0.0.1', int(port)))
+        result = sock.connect_ex(('127.0.0.1', int(self.port)))
         if result == 0:
           sock.close()
         else:
-          self.start_server()
+          self.restart([])
           if self.port is None: return
           data = self.makeRequest(doc, silent)
           if data is None: return None
@@ -161,9 +240,9 @@ class Tern(object):
   def sendBuffer(self, files=None):
     if self.port is None: return False
     try:
-      tern_makeRequest({"files": files or [self.fullBuffer()]}, True)
+      self.makeRequest({"files": files or [self.fullBuffer()]}, True)
       return True
-    except:
+    except Exception as e:
       return False
 
   @neovim.function("TernSendBufferIfDirty", sync=True)
@@ -379,7 +458,7 @@ class Tern(object):
       if buffer is None:
         with open(file, "w") as f:
           f.writelines(lines)
-        external.append({"name": file, "text": string.join(lines, ""), "type": "full"})
+        external.append({"name": file, "text": "".join(lines), "type": "full"})
     if len(external):
       self.sendBuffer(external)
     vim.command("call setloclist(0," + json.dumps(changes) + ") | Unite location_list")
