@@ -48,9 +48,9 @@ class Tern(object):
 
   def find_port(self):
     self.root = self.project_dir()
+    self.nvim.command("let g:tern_root='" + self.root + "'")
     if self.root == '':
       return
-    self.nvim.command("let g:tern_root='" + self.root + "'")
     port_file = os.path.join(self.root, ".tern-port")
     # use existing port file if possible
     if os.path.isfile(port_file):
@@ -86,7 +86,7 @@ class Tern(object):
       while True:
         parent = os.path.dirname(mydir[:-1])
         if not parent:
-          return ""
+          return self.nvim.eval("expand('%:p:h')")
         if os.path.isfile(os.path.join(mydir, ".tern-project")):
           project_dir = mydir
           break
