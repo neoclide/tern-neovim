@@ -9,6 +9,6 @@
     "url": "git://github.com/ternjs/tern_for_vim.git"
   },
   "dependencies": {
-    "tern": ">=0.5"
+    "tern": "https://github.com/ternjs/tern/tarball/master"
   }
 }

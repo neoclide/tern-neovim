@@ -121,7 +121,6 @@ class Tern(object):
         port = int(match.group(1))
         self.port = port
         self.proc = proc
-        self.nvim.command("echomsg 'Tern server started at " + str(port) + "'")
         return port
       else:
         output += line
