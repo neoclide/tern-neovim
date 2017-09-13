@@ -179,7 +179,7 @@ class Tern(object):
         start = i
 
     if start is None: start = max(0, line - 50)
-    end = min(len(buf) - 1, line + 20)
+    end = min(len(buf), line + 20)
     return {"type": "part",
         "name": self.relativeFile(),
         "text": self.bufferSlice(buf, start, end),
