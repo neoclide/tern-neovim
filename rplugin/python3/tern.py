@@ -345,7 +345,7 @@ class Tern(object):
     data = self.runCommand("type")
     if data: self.echoWrap(data.get("type", ""))
 
-  @neovim.function("TernLookupArgumentHints", sync=True)
+  @neovim.function("TernLookupArgumentHints", sync=False)
   def lookupArgumentHints(self, args):
     fname = args[0]
     apos = args[1]
@@ -400,7 +400,7 @@ class Tern(object):
         "col": col,
         "filename": filename,
         "text": name + " (file not loaded)" if len(text)==0 else text[0]})
-    vim.command("call setloclist(0," + json.dumps(refs) + ") | Unite location_list")
+    vim.command("checktime | call setloclist(0," + json.dumps(refs) + ") | Denite location_list")
 
   @neovim.function("TernRename", sync=True)
   def rename(self, args):
@@ -460,4 +460,4 @@ class Tern(object):
         external.append({"name": file, "text": "".join(lines), "type": "full"})
     if len(external):
       self.sendBuffer(external)
-    vim.command("call setloclist(0," + json.dumps(changes) + ") | Unite location_list")
+    vim.command("checktime | call setloclist(0," + json.dumps(changes) + ") | Denite location_list")
