@@ -163,7 +163,7 @@ class Tern(object):
     buf = self.nvim.current.buffer
     return {"type": "full",
             "name": self.relativeFile(),
-            "text": self.bufferSlice(buf, 0, len(buf))}
+            "text": self.bufferSlice(buf, 0, len(buf) - 1)}
 
   def bufferFragment(self):
     curRow, curCol = self.nvim.current.window.cursor
